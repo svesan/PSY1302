@@ -19,6 +19,8 @@
 *-- SAS formats --------------------------------------------------------------;
 
 *-- Main program -------------------------------------------------------------;
+title;footnote;
+
 proc sql;
   create table s1 as
   select mother_id, 0 as entry, exit_mo, event, cs, preg_len, deform, withfather, dephist,
@@ -71,7 +73,7 @@ run;
 title;
 ods listing  gpath="&slask";
 ods graphics / reset=index imagefmt=png imagename="survival";
-title1 'Depression rate by depression history. 1st year after birth';
+*title1 'Depression rate by depression history. 1st year after birth';
 proc sgpanel data=surv3;
   panelby strata / rows=1 columns=3 novarname;
   series x=exit_mo y=ppd;
@@ -79,7 +81,7 @@ proc sgpanel data=surv3;
   colaxis values=(0 to 12 by 1);
 run;
 
-title1 'Depression rate by depression history. 1st month after birth';
+*title1 'Depression rate by depression history. 1st month after birth';
 proc sgpanel data=surv3;
   where exit_mo le 1;
   panelby strata / rows=1 columns=3 novarname;

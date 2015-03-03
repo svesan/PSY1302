@@ -1,7 +1,7 @@
 *-----------------------------------------------------------------------------;
 * Study.......: PSY1302                                                       ;
-* Name........: s_dm6.sas                                                     ;
-* Date........: 2014-01-16                                                    ;
+* Name........: s_dm8.sas                                                     ;
+* Date........: 2014-12-05                                                    ;
 * Author......: svesan                                                        ;
 * Purpose.....: Data management creating analysis dataset for postpart depr   ;
 * Note........: 140123 updated codes with Michael and Christina               ;
@@ -30,9 +30,10 @@ proc format;
   value cyr     1='1997-2002' 2='2003-2008';
   value mbcfmt  1960='1960-69' 1970='1970-79' 1980='1980-89';
   value forlt   1='Elective CS' 2='Acute CS' 3='Instrument' 4='Vaginal';
-  value bpfmt   1='Hypertonia' 2='Preeclampsia' 0='Normal';
+  value bpfmt   0='Normal' 1='Hypertensive Disorder' 2='Hypertonia' ;
   value diab    1='Pre-Pregnancy' 2='During Pregnancy' 0='Non-Diabetes';
   value plencat 1='<32 wks' 2='32-36 wks' 3='37-41 wks' 4='>=42 wks';
+  value cbmi    1='<=18.5' 2='18.5-25' 3='25-35' 4='>35';
 run;
 
 
@@ -68,20 +69,20 @@ proc sql;
          missb as missbs label='Malformation',
          famsit label='Family Situation (1=Living with partner)',
          input(sfinkter, 8.) as sfink length=3 format=yesno. label='Sfinkter Rupture',
-         bordf2, hyperton, flspont, flindukt, secfore, tangmark, sugmark, bviktbs
+         bordf2, hyperton, flspont, flindukt, secfore, tangmark, sugmark, bviktbs,
+         mvikt / ((mlangd/100)**2) as bmi
 
   from connection to oracle (
   select lopnrmor, malder, x_mfoddat, x_bfoddat, paritet_f, secmark, grvbs, grdbs,
          famsit, rok1, missb,
          sfinkter, bordf2, hyperton, flspont, flindukt, secfore, tangmark, sugmark, bviktbs,
-         lopnrbarn, v_individual.kon
+         lopnrbarn, v_individual.kon, mlangd, mvikt
   from v_mfr_base
   left join v_individual
   on v_mfr_base.lopnrbarn = v_individual.lopnr
   )
   having child_bdat >= '01JAN1997'd and child_bdat < '01JAN2009'd
   ;
-
 
   *-- Exclude multiple births;
   create table br0 as select *
@@ -139,7 +140,8 @@ data br1(where=(mark ne 1) drop=_c_ _d_);
 
   attrib forltyp length=3 label='Mode of Delivery' format=forlt.
          wperc   length=3 label='SGA category'
-         mark length=3 _c_ length=5 _d_ length=5;
+         mark    length=3 _c_ length=5 _d_ length=5
+         cbmi    length=3 label='BMI' format=cbmi.
   ;
   retain _c_ _d_ 0;
   set br0 end=end_of_file;by mother_id child_bdat;
@@ -199,6 +201,13 @@ data br1(where=(mark ne 1) drop=_c_ _d_);
     put 'WARNING: ' _c_ 'births excluded since sex of child not known';
     put 'WARNING: ' _d_ 'births excluded since mode of delivery not known';
   end;
+
+  *-- 141205 bmi categorically;
+  if bmi le .z then cbmi=.u;
+  else if bmi LE 18.5 then cbmi=1;
+  else if bmi LE 25   then cbmi=2;
+  else if bmi LE 35   then cbmi=3;
+  else                     cbmi=4;
 run;
 
 
@@ -478,11 +487,11 @@ proc download data=diag2      out=sasperm.diag2;run;
 proc download data=dephistold out=sasperm.dephistold;run;
 
 proc download incat=work.formats outcat=work.formats;run;
-*/
+
 proc copy in=work out=sasperm;
   select ana1 dep_events diag2 dephistold formats;
 run;
-
+*/
 
 *-- Cleanup ------------------------------------------------------------------;
 title1;footnote;

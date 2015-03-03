@@ -1,10 +1,10 @@
 *-----------------------------------------------------------------------------;
 * Study.......: PSY1302                                                       ;
-* Name........: s_poana_long1.sas                                             ;
+* Name........: s_poana_long3.sas                                             ;
 * Date........: 2014-01-16                                                    ;
 * Author......: svesan                                                        ;
 * Purpose.....: Poisson regression following mothers from -12 month to +12    ;
-* Note........:                                                               ;
+* Note........: 140630 replaced interpolating lines with step functions       ;
 *-----------------------------------------------------------------------------;
 * Data used...: ana1 diag2                                                    ;
 * Data created: est1-est3                                                     ;
@@ -133,14 +133,16 @@ run;
 *-- General rate development (adj for calendar time, maternal);
 title1 'Depr rates -12 to +12 month';
 title2 'Adjusted for dephist mage_cat cbyear_cat';
-%tit(prog=s_poana_long1);
+%tit(prog=s_poana_long3);
 
 ods output lsmeans=lsm1;
 ods select lsmeans;
 proc glimmix data=t6 order=internal;
   class interval cbyear_cat mage_cat dephist;
+
   model event = dephist mage_cat cbyear_cat interval
   / dist=poisson offset=logoffset link=log s;
+
   lsmeans interval / ilink plots alpha=0.05;
 run;
 
@@ -148,29 +150,33 @@ run;
 *-- Rate development by depressive history at -12 month (adj for calendar time, maternal);
 title1 'Depr rates -12 to +12 month by depression history';
 title2 'Adjusted for dephist mage_cat cbyear_cat';
-%tit(prog=s_poana_long1);
+%tit(prog=s_poana_long3);
 
 ods output lsmeans=lsm2;
 ods select lsmeans;
 proc glimmix data=t6 order=internal;
   class interval cbyear_cat mage_cat dephist;
+
   model event = dephist mage_cat cbyear_cat interval interval*dephist
   / dist=poisson offset=logoffset link=log s;
+
   lsmeans interval*dephist / ilink plots alpha=0.05;
 run;
 
 *-- Rate development by maternal age and depressive history at -12 month (adj for calendar time, maternal);
 title1 'Depr rates -12 to +12 month by maternal age';
 title2 'Adjusted for dephist mage_cat cbyear_cat';
-%tit(prog=s_poana_long1);
+%tit(prog=s_poana_long3);
 
 proc sort data=t6 out=temp;by dephist interval;run;
 ods output lsmeans=lsm3;
 ods select lsmeans;
 proc glimmix data=temp order=internal;
   class interval cbyear_cat mage_cat dephist;
+
   model event = mage_cat dephist cbyear_cat interval interval*mage_cat
   / dist=poisson offset=logoffset link=log s;
+
   lsmeans interval*mage_cat / ilink plots alpha=0.05;
 run;
 
@@ -180,14 +186,19 @@ ods output lsmeans=lsm4;
 proc sort data=temp;by dephist;run;
 proc glimmix data=temp order=internal;
   class interval cbyear_cat mage_cat;
+
   model event = mage_cat  cbyear_cat interval interval*mage_cat
   / dist=poisson offset=logoffset link=log s;
+
   lsmeans interval*mage_cat / ilink plots alpha=0.05;
   by dephist;
 run;
 ods listing;
 
-*-- Rescale the rates to cases per 10,000;
+
+*--------------------------------------------;
+*  Rescale the rates to cases per 10,000     ;
+*--------------------------------------------;
 data lsmx1;
   label mu='Rate per 10,000';
   rename mu=p lowermu=lcl uppermu=ucl;
@@ -235,19 +246,20 @@ title;
 ods listing  gpath="&slask";
 ods graphics / reset=index imagefmt=png imagename="dephist";
 title1 'Depression rate by depression history';
+%tit(prog=s_poana_long3,h=0.91);
 proc sgpanel data=lsmx2;
   panelby dephist / rows=1 columns=2 novarname;
-  series x=interval y=p;
-  band   x=interval lower=lcl upper=ucl /transparency=0.5  legendlabel='95% CI';
+  step x=interval y=p;
+  band   x=interval lower=lcl upper=ucl /transparency=0.5  legendlabel='95% CI' type=step;
   colaxis values=(1 to 24 by 1);
   rowaxis logbase=2 logstyle=logexpand;
   refline 13 / axis=x;
-*  format interval 8.;
 run;
 
 proc sgplot data=lsmx2;
-  series x=interval y=p / group=dephist;
-  band   x=interval lower=lcl upper=ucl /transparency=0.5 group=dephist legendlabel='95% CI';
+  step  x=interval y=p / group=dephist;
+  refline 13 / axis=x;
+  band   x=interval lower=lcl upper=ucl /transparency=0.5 group=dephist legendlabel='95% CI' type=step;
   xaxis values=(1 to 24 by 1);
   yaxis logbase=2 type=log logstyle=logexpand;
 run;
@@ -256,11 +268,12 @@ run;
 
 ods graphics / reset=index imagefmt=png imagename="mage";
 title1 'Depression rate by maternal age';
+%tit(prog=s_poana_long3,h=0.91);
 proc sgpanel data=lsmx3;
   where mage_cat ne 7;
   panelby mage_cat / rows=2 columns=3 novarname;
-  series x=interval y=p;
-  band   x=interval lower=lcl upper=ucl /transparency=0.5 legendlabel='95% CI';
+  step x=interval y=p;
+  band   x=interval lower=lcl upper=ucl /transparency=0.5 legendlabel='95% CI' type=step;
   colaxis values=(1 to 24 by 1);
   rowaxis logbase=2 logstyle=logexpand;
   refline 13 / axis=x;
@@ -271,21 +284,23 @@ data lsmy3;
   set lsmx3;
   if mage_cat not in (3) then do;lcl=p;ucl=p;end;
 run;
+
 proc sgplot data=lsmy3;
   where mage_cat ne 7;
-  series x=interval y=p / group=mage_cat;
-  band   x=interval lower=lcl upper=ucl /transparency=0.5 group=mage_cat legendlabel='95% CI';
+  step  x=interval y=p / group=mage_cat;
+  band  x=interval lower=lcl upper=ucl /transparency=0.5 group=mage_cat legendlabel='95% CI' type=step;
   xaxis values=(1 to 24 by 1);
   yaxis logbase=2 type=log logstyle=logexpand;
 run;
 
 
 title1 'Depression rate by maternal age - Mothers with NO history of depression';
+%tit(prog=s_poana_long3,h=0.91);
 proc sgpanel data=lsmx4;
   where mage_cat ne 7 and dephist=0;
   panelby mage_cat / rows=2 columns=3 novarname;
-  series x=interval y=p;
-  band   x=interval lower=lcl upper=ucl /transparency=0.5 legendlabel='95% CI';
+  step  x=interval y=p;
+  band  x=interval lower=lcl upper=ucl /transparency=0.5 legendlabel='95% CI' type=step;
   colaxis values=(1 to 24 by 1);
   rowaxis logbase=2 logstyle=logexpand;
   refline 13 / axis=x;
@@ -298,8 +313,8 @@ data lsmy4;
 run;
 proc sgplot data=lsmy4;
   where mage_cat ne 7 and dephist=0;
-  series x=interval y=p / group=mage_cat;
-  band   x=interval lower=lcl upper=ucl /transparency=0.5 group=mage_cat legendlabel='95% CI';
+  step   x=interval y=p / group=mage_cat;
+  band   x=interval lower=lcl upper=ucl /transparency=0.5 group=mage_cat legendlabel='95% CI' type=step;
   xaxis values=(1 to 24 by 1);
   yaxis logbase=2 type=log logstyle=logexpand;
 run;
@@ -314,10 +329,9 @@ ods graphics off;
 *---------------------------------------;
 options ls=160;
 
-ods select  estimates;
 title1 'Risk of depression from -1 year to +1 year';
 title2 'Adjusted by dephist mage_cat cbyear_cat';
-%tit(prog=s_poana_long1);
+%tit(prog=s_poana_long3,h=0.91);
 ods output estimates=est1;
 proc glimmix data=t6 order=internal;
   class interval cbyear_cat mage_cat dephist;
@@ -369,7 +383,7 @@ run;
 *-----------------------------------------------------------------;
 title1 'Risk of depression from -1 year to +1 year. Restricted to mothers with depr. history at -12 month';
 title2 'Adjusted by dephist mage_cat cbyear_cat';
-%tit(prog=s_poana_long1);
+%tit(prog=s_poana_long3);
 
 ods output estimates=est2;
 proc glimmix data=t6 order=internal;
@@ -422,7 +436,7 @@ run;
 *--------------------------------------------------------------------;
 title1 'Risk of depression from -1 year to +1 year. Restricted to mothers with NO depr. history at -12 month';
 title2 'Adjusted by dephist mage_cat cbyear_cat';
-%tit(prog=s_poana_long1);
+%tit(prog=s_poana_long3,h=0.91);
 
 ods output estimates=est3;
 proc glimmix data=t6 order=internal;

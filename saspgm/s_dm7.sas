@@ -1,16 +1,25 @@
 *-----------------------------------------------------------------------------;
 * Study.......: PSY1302                                                       ;
-* Name........: s_poana_ppd4.sas                                              ;
+* Name........: s_poana_ppd7.sas                                              ;
 * Date........: 2014-01-16                                                    ;
 * Author......: svesan                                                        ;
-* Purpose.....: Poisson regression of PPD starting follow-up from birth       ;
+* Purpose..... : Poisson regression of PPD starting follow-up from birth      ;
 * Note........: Bug fix. In _ppd1 dephist was defined as dephist at -12 month ;
 * Note........: 140424 (a) added crude models, (b) added birth yr comparisons ;
 * ............: to the earlier models, added printout of cases, pyear         ;
 * Note........: 140625 added several covariates after talking to S Cnattingius;
+* ............:                                                               ;
+* Note........: 140715 (a) added plen_cat crude and as adjusted, (b) removed  ;
+* ............: dephist covariates in adjusted subgroup analyses, (c) replaced;
+* ............: preg_len with plen_cat when adjusting                         ;
+* ............:                                                               ;
+* Note........: 141205 (a) added bmi to ana1 dataset, (b) bug fix earlier the ;
+* ............: bfmt was not correct so Preeclampsia was too few              ;
+* ............:                                                               ;
+* ............:                                                               ;
 *-----------------------------------------------------------------------------;
 * Data used...: ana1                                                          ;
-* Data created: ppdest1-ppdest3                                               ;
+* Data created: ppdest1a-ppdest3a, basic                                      ;
 *-----------------------------------------------------------------------------;
 * OP..........: Linux/ SAS ver 9.04.01M0P061913                               ;
 *-----------------------------------------------------------------------------;
@@ -39,7 +48,7 @@ proc sql;
   create table s1 as
   select mother_id, 0 as entry, exit_mo, event, cs, preg_len, deform, withfather, dephist,
          mage, mbyear_cat, cbyear_cat, mage_catb, psycho, (exit_mo-0)/12 as pyear,
-         sfinkt, forltyp, prodeliv, hyp, bp, wperc, diab
+         sfinkt, forltyp, prodeliv, bp, wperc, diab, plen_cat, cbmi
   from ana1
   where mage GE 15 and mage LE 49
   ;
@@ -59,8 +68,9 @@ proc sql;
   select a.mother_id, a.interval, a._risk, a._no_of_events, a.event,
          b.mage, b.mage_catb, b.mbyear_cat, b.cbyear_cat,
          b.cs, b.preg_len, b.deform, b.withfather, b.psycho, b.dephist,
-         b.sfinkt, b.forltyp, b.prodeliv, b.hyp, b.bp, b.wperc, b.diab,
-         case when c.dephist eq 1 then 1 else 0 end as dephistold length=3 label='Depr hist before -12 month' format=yesno.
+         b.sfinkt, b.forltyp, b.prodeliv, b.bp, b.wperc, b.diab, b.plen_cat,
+         case when c.dephist eq 1 then 1 else 0 end as dephistold length=3 label='Depr hist before -12 month' format=yesno.,
+         b.cbmi
   from s2 as a
   left join s1 as b
     on a.mother_id=b.mother_id
@@ -74,28 +84,28 @@ quit;
 * Summary statistics                                  ;
 *-----------------------------------------------------;
 title1 'Summary statistics: PPD analysis';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 proc means data=s1 n nmiss mean stderr q1 q3 min max sum maxdec=1;
-  var event mage preg_len deform cs withfather dephist psycho sfinkt prodeliv hyp bp;
+  var event mage preg_len deform cs withfather dephist psycho sfinkt prodeliv bp cbmi;
 run;
 
 title1 'PPD frequencis by exposure';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 proc freq data=s1;
   table (cbyear_cat dephist mage_catb dephist cs deform withfather psycho
-         sfinkt wperc forltyp prodeliv hyp bp diab)*event / missing nocol nopercent;
+         sfinkt wperc forltyp prodeliv bp diab plen_cat cbmi)*event / missing nocol nopercent;
 run;
 
 
 title1 'PPD frequency and number of birth';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 proc freq data=s1;
   table event / missing nocol nopercent;
 run;
 
 
 title1 'PPD frequencis by time internal';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 proc freq data=s3;
   table (interval)*event / missing nocol nopercent;
 run;
@@ -121,6 +131,7 @@ PROC REPORT DATA=s7 LS=130 PS=43  SPLIT=" " PANELS=10  PSPACE=4   HEADLINE NOCEN
 
   DEFINE  EXIT_MO / DISPLAY FORMAT= 5.2 WIDTH=5     SPACING=1   RIGHT ORDER=INTERNAL "Month" ;
   DEFINE  CUM_FREQ / DISPLAY FORMAT= 4. WIDTH=4     SPACING=1   RIGHT ORDER=INTERNAL "Cum Freq" ;
+  DEFINE  CUM_PCT / DISPLAY FORMAT= 5.2 WIDTH=5     SPACING=1   RIGHT ORDER=INTERNAL "Cum Pct" ;
 RUN;QUIT;
 
 
@@ -129,7 +140,8 @@ RUN;QUIT;
 *-----------------------------------------------------;
 proc summary data=s3 nway missing;
   var event _risk;
-  class cbyear_cat dephist mage_catb dephist cs preg_len deform withfather psycho sfinkt wperc forltyp prodeliv hyp bp diab interval;
+  class cbyear_cat dephist mage_catb dephist cs plen_cat preg_len
+        deform withfather psycho sfinkt wperc forltyp prodeliv bp diab interval cbmi;
   output out=s4(drop=_type_ _freq_) sum=event _risk;
 run;
 
@@ -146,11 +158,9 @@ run;
 *---------------------------------------;
 options ls=160;
 
-*ods select estimates;
 title1 'Risk of PPD. All women';
 title2 'Adjusting for interval cbyear_cat mage_catb dephist';
-%tit(prog=s_poana_ppd4);
-*ods output estimates=ppdest1;
+%tit(prog=s_poana_ppd7);
 proc glimmix data=s5 order=internal;
   class interval cbyear_cat mage_catb dephist;
   model event = dephist mage_catb cbyear_cat interval
@@ -181,7 +191,7 @@ run;
 
 title1 'Risk of PPD. Restricted to mothers with depr. history bef birth';
 title2 'Adjusting for interval cbyear_cat mage_catb';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 *ods output estimates=ppdest2;
 proc glimmix data=s5 order=internal;
   where dephist=1;
@@ -213,7 +223,7 @@ run;
 
 title1 'Risk of PPD. Restricted to mothers with NO depr. history bef birth';
 title2 'Adjusting for interval cbyear_cat mage_catb';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 *ods output estimates=ppdest3;
 proc glimmix data=s5 order=internal;
   where dephist=0;
@@ -246,19 +256,230 @@ run;
 
 *-------------------------------------------------------------------------;
 * Include CS, Living with father of child, pregnancy length, deformations ;
-* 140625 added  sfinkt  forltyp prodeliv hyp bp ;
+* 140625 added  sfinkt  forltyp prodeliv bp ;
 *-------------------------------------------------------------------------;
 options ls=160;
 
 *ods select estimates;
 title1 'Risk of PPD. All women';
-title2 'Adjusting for interval cbyear_cat mage_catb dephist  deform withfather psycho';
-%tit(prog=s_poana_ppd4);
+title2 'Adjusting for interval cbyear_cat mage_catb dephist cs deform withfather sfinkt forltyp prodeliv bp wperc diab plen_cat cbmi';
+%tit(prog=s_poana_ppd7);
 ods output estimates=ppdest1;
 proc glimmix data=s5 order=internal;
-  class interval cbyear_cat mage_catb dephist cs deform withfather psycho sfinkt forltyp prodeliv hyp bp wperc diab;
-  model event = dephist mage_catb cbyear_cat interval cs preg_len deform withfather psycho sfinkt forltyp prodeliv hyp bp wperc diab
+  class interval cbyear_cat mage_catb dephist cs deform withfather sfinkt forltyp prodeliv bp wperc diab plen_cat cbmi;
+
+  model event = interval dephist mage_catb cbyear_cat cs plen_cat deform withfather sfinkt forltyp prodeliv bp wperc diab cbmi
+
   / dist=poisson offset=logoffset link=log s htype=2;
+
+  estimate 'With depr. history' dephist -1 1 / exp alpha=0.05;
+
+  estimate 'B. Year 2003-2008 / 1997-2002' cbyear_cat -1 1 / exp alpha=0.05;
+
+  estimate 'M.Age 15-19 vs 25-29' mage_catb 1 0 -1 0 0 0   / exp alpha=0.05;
+  estimate 'M.Age 20-24 vs 25-29' mage_catb 0 1 -1 0 0 0   / exp alpha=0.05;
+  estimate 'M.Age 30-34 vs 25-29' mage_catb 0 0 -1 1 0 0   / exp alpha=0.05;
+  estimate 'M.Age 35-39 vs 25-29' mage_catb 0 0 -1 0 1 0   / exp alpha=0.05;
+  estimate 'M.Age >39   vs 25-29' mage_catb 0 0 -1 0 0 1   / exp alpha=0.05;
+
+  estimate ' 1 month after' interval  -1 1 / exp alpha=0.05 ;
+  estimate ' 2 month after' interval  -1 0 1 / exp alpha=0.05 ;
+  estimate ' 3 month after' interval  -1 0 0 1 / exp alpha=0.05 ;
+  estimate ' 4 month after' interval  -1 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 5 month after' interval  -1 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 6 month after' interval  -1 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 7 month after' interval  -1 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 8 month after' interval  -1 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 9 month after' interval  -1 0 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate '10 month after' interval  -1 0 0 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate '11 month after' interval  -1 0 0 0 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+
+  estimate 'Mo. living with childs father' withfather -1 1 / exp alpha=0.05;
+  estimate 'CS'                            cs         -1 1 / exp alpha=0.05;
+  estimate 'Deformation'                   deform     -1 1 / exp alpha=0.05;
+
+  estimate 'Instr vs non-instr delivery'   forltyp   0 0 1 -1 / exp alpha=0.05;
+  estimate 'Planned vs acute CS'           forltyp  -1 1 0  0 / exp alpha=0.05;
+  estimate 'Acute vs non-acute delivery'   forltyp  -0.5 0.5 0.5 -0.5 / exp alpha=0.05;
+
+  estimate 'SfinktR'                       sfinkt     -1 1 / exp alpha=0.05;
+  estimate 'Prol. Deliv'                   prodeliv   -1 1 / exp alpha=0.05;
+
+*-- 2014-12-05 bug fix by svesan;
+*  estimate 'BP: Hypertonia'                bp          0 1 -1 / exp alpha=0.05;
+*  estimate 'BP: Preeclampsia'              bp          1 0 -1 / exp alpha=0.05;
+  estimate 'BP: Hypertonia'                bp         -1 0 1 / exp alpha=0.05;
+  estimate 'BP: Hypertensive Disorder'     bp         -1 1 0 / exp alpha=0.05;
+
+  estimate 'Diabetes'                      diab       -1 0.5 0.5 / exp alpha=0.05;
+  estimate 'Diabetes, Pre-pregn'           diab       -1 0   1   / exp alpha=0.05;
+  estimate 'Diabetes, Pregnancy'           diab       -1 1   0   / exp alpha=0.05;
+
+  estimate 'SGA: small'                    wperc       1 -1 0 0 0 / exp alpha=0.05;
+  estimate 'SGA: Moderately small'         wperc       0 -1 1 0 0 / exp alpha=0.05;
+  estimate 'SGA: large'                    wperc       0 -1 0 1 0 / exp alpha=0.05;
+  estimate 'SGA: very large'               wperc       0 -1 0 0 1 / exp alpha=0.05;
+
+  estimate 'Pregnancy length: <32 vs 37-41'     plen_cat  1  0 -1  0 / exp alpha=0.05;
+  estimate 'Pregnancy length: 32-36 vs 37-41'   plen_cat  0  1 -1  0 / exp alpha=0.05;
+  estimate 'Pregnancy length: >=42 vs 37-41'    plen_cat  0  0 -1  1 / exp alpha=0.05;
+
+  estimate 'BMI: <18.8 vs 18.5-25'   cbmi  1 -1  0  0 / exp alpha=0.05;
+  estimate 'BMI: 25-35 vs 18.5-25'   cbmi  0 -1  1  0 / exp alpha=0.05;
+  estimate 'BMI: >35 vs 18.5-25'     cbmi  0 -1  0  1 / exp alpha=0.05;
+run;
+
+
+title1 'Risk of PPD. Women with history of depression';
+title2 'Adjusting for  interval cbyear_cat mage_catb dephist cs deform withfather sfinkt forltyp prodeliv bp wperc diab plen_cat';
+%tit(prog=s_poana_ppd7);
+ods output estimates=ppdest2;
+proc glimmix data=s5 order=internal;
+  where dephist=1;
+  class interval cbyear_cat mage_catb cs deform withfather sfinkt forltyp prodeliv bp wperc diab plen_cat cbmi;
+
+  model event = interval mage_catb cbyear_cat cs plen_cat deform withfather sfinkt forltyp prodeliv bp wperc diab cbmi
+
+  / dist=poisson offset=logoffset link=log s htype=2;
+
+  estimate 'B. Year 2003-2008 / 1997-2002' cbyear_cat -1 1 / exp alpha=0.05;
+
+  estimate 'M.Age 15-19 vs 25-29' mage_catb 1 0 -1 0 0 0   / exp alpha=0.05;
+  estimate 'M.Age 20-24 vs 25-29' mage_catb 0 1 -1 0 0 0   / exp alpha=0.05;
+  estimate 'M.Age 30-34 vs 25-29' mage_catb 0 0 -1 1 0 0   / exp alpha=0.05;
+  estimate 'M.Age 35-39 vs 25-29' mage_catb 0 0 -1 0 1 0   / exp alpha=0.05;
+  estimate 'M.Age >39   vs 25-29' mage_catb 0 0 -1 0 0 1   / exp alpha=0.05;
+
+  estimate ' 1 month after' interval  -1 1 / exp alpha=0.05 ;
+  estimate ' 2 month after' interval  -1 0 1 / exp alpha=0.05 ;
+  estimate ' 3 month after' interval  -1 0 0 1 / exp alpha=0.05 ;
+  estimate ' 4 month after' interval  -1 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 5 month after' interval  -1 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 6 month after' interval  -1 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 7 month after' interval  -1 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 8 month after' interval  -1 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 9 month after' interval  -1 0 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate '10 month after' interval  -1 0 0 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate '11 month after' interval  -1 0 0 0 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+
+  estimate 'Mo. living with childs father' withfather -1 1 / exp alpha=0.05;
+  estimate 'CS'                            cs         -1 1 / exp alpha=0.05;
+  estimate 'Deformation'                   deform     -1 1 / exp alpha=0.05;
+
+  estimate 'Instr vs non-instr delivery'   forltyp   0 0 1 -1 / exp alpha=0.05;
+  estimate 'Planned vs acute CS'           forltyp  -1 1 0  0 / exp alpha=0.05;
+  estimate 'Acute vs non-acute delivery'   forltyp  -0.5 0.5 0.5 -0.5 / exp alpha=0.05;
+
+  estimate 'SfinktR'                       sfinkt     -1 1 / exp alpha=0.05;
+  estimate 'Prol. Deliv'                   prodeliv   -1 1 / exp alpha=0.05;
+
+*-- 2014-12-05 bug fix by svesan;
+*  estimate 'BP: Hypertonia'                bp          0 1 -1 / exp alpha=0.05;
+*  estimate 'BP: Preeclampsia'              bp          1 0 -1 / exp alpha=0.05;
+  estimate 'BP: Hypertonia'                bp         -1 0 1 / exp alpha=0.05;
+  estimate 'BP: Hypertensive Disorder'     bp         -1 1 0 / exp alpha=0.05;
+
+  estimate 'Diabetes'                      diab       -1 0.5 0.5 / exp alpha=0.05;
+  estimate 'Diabetes, Pre-pregn'           diab       -1 0   1   / exp alpha=0.05;
+  estimate 'Diabetes, Pregnancy'           diab       -1 1   0   / exp alpha=0.05;
+
+  estimate 'SGA: small'                    wperc       1 -1 0 0 0 / exp alpha=0.05;
+  estimate 'SGA: Moderately small'         wperc       0 -1 1 0 0 / exp alpha=0.05;
+  estimate 'SGA: large'                    wperc       0 -1 0 1 0 / exp alpha=0.05;
+  estimate 'SGA: very large'               wperc       0 -1 0 0 1 / exp alpha=0.05;
+
+  estimate 'Pregnancy length: <32 vs 37-41'     plen_cat  1  0 -1  0 / exp alpha=0.05;
+  estimate 'Pregnancy length: 32-36 vs 37-41'   plen_cat  0  1 -1  0 / exp alpha=0.05;
+  estimate 'Pregnancy length: >=42 vs 37-41'    plen_cat  0  0 -1  1 / exp alpha=0.05;
+
+  estimate 'BMI: <18.8 vs 18.5-25'   cbmi  1 -1  0  0 / exp alpha=0.05;
+  estimate 'BMI: 25-35 vs 18.5-25'   cbmi  0 -1  1  0 / exp alpha=0.05;
+  estimate 'BMI: >35 vs 18.5-25'     cbmi  0 -1  0  1 / exp alpha=0.05;
+run;
+
+
+title1 'Risk of PPD. Women with NO history of depression';
+title2 'Adjusting for  interval cbyear_cat mage_catb dephist cs deform withfather sfinkt forltyp prodeliv bp wperc diab plen_cat';
+%tit(prog=s_poana_ppd7);
+ods output estimates=ppdest3;
+proc glimmix data=s5 order=internal;
+  where dephist=0;
+  class interval cbyear_cat mage_catb cs deform withfather sfinkt forltyp prodeliv bp wperc diab plen_cat cbmi;
+
+  model event = interval mage_catb cbyear_cat cs plen_cat deform withfather sfinkt forltyp prodeliv bp wperc diab cbmi
+
+  / dist=poisson offset=logoffset link=log s htype=2;
+
+  estimate 'B. Year 2003-2008 / 1997-2002' cbyear_cat -1 1 / exp alpha=0.05;
+
+  estimate 'M.Age 15-19 vs 25-29' mage_catb 1 0 -1 0 0 0   / exp alpha=0.05;
+  estimate 'M.Age 20-24 vs 25-29' mage_catb 0 1 -1 0 0 0   / exp alpha=0.05;
+  estimate 'M.Age 30-34 vs 25-29' mage_catb 0 0 -1 1 0 0   / exp alpha=0.05;
+  estimate 'M.Age 35-39 vs 25-29' mage_catb 0 0 -1 0 1 0   / exp alpha=0.05;
+  estimate 'M.Age >39   vs 25-29' mage_catb 0 0 -1 0 0 1   / exp alpha=0.05;
+
+  estimate ' 1 month after' interval  -1 1 / exp alpha=0.05 ;
+  estimate ' 2 month after' interval  -1 0 1 / exp alpha=0.05 ;
+  estimate ' 3 month after' interval  -1 0 0 1 / exp alpha=0.05 ;
+  estimate ' 4 month after' interval  -1 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 5 month after' interval  -1 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 6 month after' interval  -1 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 7 month after' interval  -1 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 8 month after' interval  -1 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate ' 9 month after' interval  -1 0 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate '10 month after' interval  -1 0 0 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+  estimate '11 month after' interval  -1 0 0 0 0 0 0 0 0 0 0 1 / exp alpha=0.05 ;
+
+  estimate 'Mo. living with childs father' withfather -1 1 / exp alpha=0.05;
+  estimate 'CS'                            cs         -1 1 / exp alpha=0.05;
+  estimate 'Deformation'                   deform     -1 1 / exp alpha=0.05;
+
+  estimate 'Instr vs non-instr delivery'   forltyp   0 0 1 -1 / exp alpha=0.05;
+  estimate 'Planned vs acute CS'           forltyp  -1 1 0  0 / exp alpha=0.05;
+  estimate 'Acute vs non-acute delivery'   forltyp  -0.5 0.5 0.5 -0.5 / exp alpha=0.05;
+
+  estimate 'SfinktR'                       sfinkt     -1 1 / exp alpha=0.05;
+  estimate 'Prol. Deliv'                   prodeliv   -1 1 / exp alpha=0.05;
+
+*-- 2014-12-05 bug fix by svesan;
+*  estimate 'BP: Hypertonia'                bp          0 1 -1 / exp alpha=0.05;
+*  estimate 'BP: Preeclampsia'              bp          1 0 -1 / exp alpha=0.05;
+  estimate 'BP: Hypertonia'                bp         -1 0 1 / exp alpha=0.05;
+  estimate 'BP: Hypertensive Disorder'     bp         -1 1 0 / exp alpha=0.05;
+
+  estimate 'Diabetes'                      diab       -1 0.5 0.5 / exp alpha=0.05;
+  estimate 'Diabetes, Pre-pregn'           diab       -1 0   1   / exp alpha=0.05;
+  estimate 'Diabetes, Pregnancy'           diab       -1 1   0   / exp alpha=0.05;
+
+  estimate 'SGA: small'                    wperc       1 -1 0 0 0 / exp alpha=0.05;
+  estimate 'SGA: Moderately small'         wperc       0 -1 1 0 0 / exp alpha=0.05;
+  estimate 'SGA: large'                    wperc       0 -1 0 1 0 / exp alpha=0.05;
+  estimate 'SGA: very large'               wperc       0 -1 0 0 1 / exp alpha=0.05;
+
+  estimate 'Pregnancy length: <32 vs 37-41'     plen_cat  1  0 -1  0 / exp alpha=0.05;
+  estimate 'Pregnancy length: 32-36 vs 37-41'   plen_cat  0  1 -1  0 / exp alpha=0.05;
+  estimate 'Pregnancy length: >=42 vs 37-41'    plen_cat  0  0 -1  1 / exp alpha=0.05;
+
+  estimate 'BMI: <18.8 vs 18.5-25'   cbmi  1 -1  0  0 / exp alpha=0.05;
+  estimate 'BMI: 25-35 vs 18.5-25'   cbmi  0 -1  1  0 / exp alpha=0.05;
+  estimate 'BMI: >35 vs 18.5-25'     cbmi  0 -1  0  1 / exp alpha=0.05;
+run;
+
+
+*=============================================================;
+* The same models as above but replace preg_len with plen_cat ;
+*=============================================================;
+
+title1 'Risk of PPD. All women. Pregnancy length categorically instead of continuous and with psychosis.';
+title2 'Adjusting for  interval cbyear_cat mage_catb dephist cs deform withfather sfinkt forltyp prodeliv bp wperc diab preg_len';
+%tit(prog=s_poana_ppd7);
+ods output estimates=ppdest4;
+proc glimmix data=s5 order=internal;
+  class interval cbyear_cat mage_catb dephist cs deform withfather psycho sfinkt forltyp prodeliv bp wperc diab cbmi;
+
+  model event = interval dephist mage_catb cbyear_cat cs deform withfather psycho sfinkt forltyp prodeliv bp wperc diab preg_len cbmi
+  / dist=poisson offset=logoffset link=log s htype=2;
+
   estimate 'With depr. history' dephist -1 1 / exp alpha=0.05;
 
   estimate 'B. Year 2003-2008 / 1997-2002' cbyear_cat -1 1 / exp alpha=0.05;
@@ -294,8 +515,11 @@ proc glimmix data=s5 order=internal;
   estimate 'SfinktR'                       sfinkt     -1 1 / exp alpha=0.05;
   estimate 'Prol. Deliv'                   prodeliv   -1 1 / exp alpha=0.05;
 
-  estimate 'BP: Hypertonia'                bp         -1 1 0 / exp alpha=0.05;
-  estimate 'BP: Preeclampsia'              bp         -1 0 1 / exp alpha=0.05;
+*-- 2014-12-05 bug fix by svesan;
+*  estimate 'BP: Hypertonia'                bp          0 1 -1 / exp alpha=0.05;
+*  estimate 'BP: Preeclampsia'              bp          1 0 -1 / exp alpha=0.05;
+  estimate 'BP: Hypertonia'                bp         -1 0 1 / exp alpha=0.05;
+  estimate 'BP: Hypertensive Disorder'     bp         -1 1 0 / exp alpha=0.05;
 
   estimate 'Diabetes'                      diab       -1 0.5 0.5 / exp alpha=0.05;
   estimate 'Diabetes, Pre-pregn'           diab       -1 0   1   / exp alpha=0.05;
@@ -306,17 +530,21 @@ proc glimmix data=s5 order=internal;
   estimate 'SGA: large'                    wperc       0 -1 0 1 0 / exp alpha=0.05;
   estimate 'SGA: very large'               wperc       0 -1 0 0 1 / exp alpha=0.05;
 
+  estimate 'BMI: <18.8 vs 18.5-25'   cbmi  1 -1  0  0 / exp alpha=0.05;
+  estimate 'BMI: 25-35 vs 18.5-25'   cbmi  0 -1  1  0 / exp alpha=0.05;
+  estimate 'BMI: >35 vs 18.5-25'     cbmi  0 -1  0  1 / exp alpha=0.05;
 run;
 
 
-title1 'Risk of PPD. Women with history of depression';
-title2 'Adjusting for interval cbyear_cat mage_catb deform withfather psycho';
-%tit(prog=s_poana_ppd4);
-ods output estimates=ppdest2;
+title1 'Risk of PPD. Women WITH history of depression. Pregnancy length categorically instead of continuous and with psychosis.';
+title2 'Adjusting for interval cbyear_cat mage_catb cs deform withfather psycho sfinkt forltyp prodeliv bp wperc diab preg_len cbmi';
+%tit(prog=s_poana_ppd7);
+ods output estimates=ppdest5;
 proc glimmix data=s5 order=internal;
   where dephist=1;
-  class interval cbyear_cat mage_catb dephist cs deform withfather psycho sfinkt forltyp prodeliv hyp bp wperc diab;
-  model event = dephist mage_catb cbyear_cat interval cs preg_len deform withfather psycho sfinkt forltyp prodeliv hyp bp wperc diab
+  class interval cbyear_cat mage_catb cs deform withfather psycho sfinkt forltyp prodeliv bp wperc diab cbmi;
+
+  model event = interval mage_catb cbyear_cat cs deform withfather psycho sfinkt forltyp prodeliv bp wperc diab preg_len cbmi
   / dist=poisson offset=logoffset link=log s htype=2;
 
   estimate 'B. Year 2003-2008 / 1997-2002' cbyear_cat -1 1 / exp alpha=0.05;
@@ -352,8 +580,12 @@ proc glimmix data=s5 order=internal;
 
   estimate 'SfinktR'                       sfinkt     -1 1 / exp alpha=0.05;
   estimate 'Prol. Deliv'                   prodeliv   -1 1 / exp alpha=0.05;
-  estimate 'BP: Hypertonia'                bp          0 1 -1 / exp alpha=0.05;
-  estimate 'BP: Preeclampsia'              bp          1 0 -1 / exp alpha=0.05;
+
+*-- 2014-12-05 bug fix by svesan;
+*  estimate 'BP: Hypertonia'                bp          0 1 -1 / exp alpha=0.05;
+*  estimate 'BP: Preeclampsia'              bp          1 0 -1 / exp alpha=0.05;
+  estimate 'BP: Hypertonia'                bp         -1 0 1 / exp alpha=0.05;
+  estimate 'BP: Hypertensive Disorder'     bp         -1 1 0 / exp alpha=0.05;
 
   estimate 'Diabetes'                      diab       -1 0.5 0.5 / exp alpha=0.05;
   estimate 'Diabetes, Pre-pregn'           diab       -1 0   1   / exp alpha=0.05;
@@ -364,17 +596,22 @@ proc glimmix data=s5 order=internal;
   estimate 'SGA: large'                    wperc       0 -1 0 1 0 / exp alpha=0.05;
   estimate 'SGA: very large'               wperc       0 -1 0 0 1 / exp alpha=0.05;
 
+  estimate 'BMI: <18.8 vs 18.5-25'   cbmi  1 -1  0  0 / exp alpha=0.05;
+  estimate 'BMI: 25-35 vs 18.5-25'   cbmi  0 -1  1  0 / exp alpha=0.05;
+  estimate 'BMI: >35 vs 18.5-25'     cbmi  0 -1  0  1 / exp alpha=0.05;
 run;
 
 
-title1 'Risk of PPD. Women with NO history of depression';
-title2 'Adjusting for interval cbyear_cat mage_catb deform withfather psycho';
-%tit(prog=s_poana_ppd4);
-ods output estimates=ppdest3;
+title1 'Risk of PPD. Women with NO history of depression. Pregnancy length categorically instead of continuous.';
+title2 'Adjusting for interval mage_catb cbyear_cat cs deform withfather psycho sfinkt forltyp prodeliv bp wperc diab preg_len cbmi';
+title3 'Note: Adjust for psycho not done since no data here';
+%tit(prog=s_poana_ppd7);
+ods output estimates=ppdest6;
 proc glimmix data=s5 order=internal;
   where dephist=0;
-  class interval cbyear_cat mage_catb dephist cs deform withfather sfinkt forltyp prodeliv hyp bp wperc diab;
-  model event = dephist mage_catb cbyear_cat interval cs preg_len deform withfather sfinkt forltyp prodeliv hyp bp wperc diab
+  class interval cbyear_cat mage_catb cs deform withfather sfinkt forltyp prodeliv bp wperc diab cbmi;
+
+  model event = interval mage_catb cbyear_cat cs deform withfather psycho sfinkt forltyp prodeliv bp wperc diab preg_len cbmi
 
   / dist=poisson offset=logoffset link=log s htype=2;
 
@@ -410,8 +647,12 @@ proc glimmix data=s5 order=internal;
 
   estimate 'SfinktR'                       sfinkt     -1 1 / exp alpha=0.05;
   estimate 'Prol. Deliv'                   prodeliv   -1 1 / exp alpha=0.05;
-  estimate 'BP: Hypertonia'                bp          0 1 -1 / exp alpha=0.05;
-  estimate 'BP: Preeclampsia'              bp          1 0 -1 / exp alpha=0.05;
+
+*-- 2014-12-05 bug fix by svesan;
+*  estimate 'BP: Hypertonia'                bp          0 1 -1 / exp alpha=0.05;
+*  estimate 'BP: Preeclampsia'              bp          1 0 -1 / exp alpha=0.05;
+  estimate 'BP: Hypertonia'                bp         -1 0 1 / exp alpha=0.05;
+  estimate 'BP: Hypertensive Disorder'     bp         -1 1 0 / exp alpha=0.05;
 
   estimate 'Diabetes'                      diab       -1 0.5 0.5 / exp alpha=0.05;
   estimate 'Diabetes, Pre-pregn'           diab       -1 0   1   / exp alpha=0.05;
@@ -422,22 +663,42 @@ proc glimmix data=s5 order=internal;
   estimate 'SGA: large'                    wperc       0 -1 0 1 0 / exp alpha=0.05;
   estimate 'SGA: very large'               wperc       0 -1 0 0 1 / exp alpha=0.05;
 
+  estimate 'BMI: <18.8 vs 18.5-25'   cbmi  1 -1  0  0 / exp alpha=0.05;
+  estimate 'BMI: 25-35 vs 18.5-25'   cbmi  0 -1  1  0 / exp alpha=0.05;
+  estimate 'BMI: >35 vs 18.5-25'     cbmi  0 -1  0  1 / exp alpha=0.05;
 run;
 
 
-*-- Cleanup ------------------------------------------------------------------;
-title1;footnote;
-proc datasets lib=work mt=data nolist;
-*  delete s1-s7;
-quit;
+*-- Join in pregnancy length RR continuously;
+data ppdest1a;
+  set ppdest1(in=ppdest1)
+      ppdest4(in=ppdest4)
+  ;
+  if ppdest1 or (ppdest4 and index(label,'Pregnancy length, +1 week')>0);
+run;
 
-*-- End of File --------------------------------------------------------------;
+data ppdest2a;
+  set ppdest2(in=ppdest2)
+      ppdest5(in=ppdest5)
+  ;
+  if ppdest2 or (ppdest5 and index(label,'Pregnancy length, +1 week')>0);
+run;
+
+data ppdest3a;
+  set ppdest3(in=ppdest3)
+      ppdest6(in=ppdest6)
+  ;
+  if ppdest3 or (ppdest6 and index(label,'Pregnancy length, +1 week')>0);
+run;
 
 
+*=====================================================;
+* Crude models                                        ;
+*=====================================================;
 
 title1 'Risk of PPD. All women. Depr Hist - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest1;
 proc glimmix data=s5 order=internal;
   class interval dephist;
@@ -449,7 +710,7 @@ run;
 
 title1 'Risk of PPD. All women. Birth Years - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest2;
 proc glimmix data=s5 order=internal;
   class interval cbyear_cat;
@@ -462,7 +723,7 @@ run;
 
 title1 'Risk of PPD. All women. Maternal Age - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest3;
 proc glimmix data=s5 order=internal;
   class interval mage_catb;
@@ -478,7 +739,7 @@ run;
 
 title1 'Risk of PPD. All women. Living with father - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest4;
 proc glimmix data=s5 order=internal;
   class interval withfather;
@@ -490,7 +751,7 @@ run;
 
 title1 'Risk of PPD. All women. CS - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest5;
 proc glimmix data=s5 order=internal;
   class interval cs;
@@ -502,7 +763,7 @@ run;
 
 title1 'Risk of PPD. All women. Deformation - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest6;
 proc glimmix data=s5 order=internal;
   class interval deform;
@@ -514,7 +775,7 @@ run;
 
 title1 'Risk of PPD. All women. Pregnancy length - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest7;
 proc glimmix data=s5 order=internal;
   class interval ;
@@ -526,7 +787,7 @@ run;
 
 title1 'Risk of PPD. All women. Psychosis - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest8;
 proc glimmix data=s5 order=internal;
   class interval psycho;
@@ -538,7 +799,7 @@ run;
 
 title1 'Risk of PPD. All women. Sfinkter - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest9;
 proc glimmix data=s5 order=internal;
   class interval sfinkt;
@@ -550,7 +811,7 @@ run;
 
 title1 'Risk of PPD. All women. Mode of delivery - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest10;
 proc glimmix data=s5 order=internal;
   class interval forltyp;
@@ -565,7 +826,7 @@ run;
 
 title1 'Risk of PPD. All women. Prolonged delivery - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest11;
 proc glimmix data=s5 order=internal;
   class interval prodeliv;
@@ -577,7 +838,7 @@ run;
 
 title1 'Risk of PPD. All women. BP disease. Hypotonia - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest12;
 proc glimmix data=s5 order=internal;
   class interval bp;
@@ -592,7 +853,7 @@ run;
 
 title1 'Risk of PPD. All women. SGA - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest13;
 proc glimmix data=s5 order=internal;
   class interval wperc;
@@ -608,7 +869,7 @@ run;
 
 title1 'Risk of PPD. All women. Diabetes pre-pregnancy - Crude.';
 title2 'Adjusting for interval only';
-%tit(prog=s_poana_ppd4);
+%tit(prog=s_poana_ppd7);
 ods output estimates=cr_ppdest14;
 proc glimmix data=s5 order=internal;
   class interval diab;
@@ -619,6 +880,20 @@ proc glimmix data=s5 order=internal;
 run;
 
 
+title1 'Risk of PPD. All women. Pregnancy length categorically - Crude.';
+title2 'Adjusting for interval only';
+%tit(prog=s_poana_ppd7);
+ods output estimates=cr_ppdest15;
+proc glimmix data=s5 order=internal;
+  class interval plen_cat;
+  model event = interval plen_cat
+  / dist=poisson offset=logoffset link=log s htype=2;
+
+  estimate 'Pregnancy length: <32 vs 37-41'     plen_cat  1  0 -1  0 / exp alpha=0.05;
+  estimate 'Pregnancy length: 32-36 vs 37-41'   plen_cat  0  1 -1  0 / exp alpha=0.05;
+  estimate 'Pregnancy length: >=42 vs 37-41'    plen_cat  0  0 -1  1 / exp alpha=0.05;
+run;
+
 
 *--------------------------------------------------------;
 * Combine the crude estimates to one dataset             ;
@@ -626,7 +901,7 @@ run;
 data crude_estimates;
   attrib label length=$60 label='Comparison';
   label expestimate='RR' explower='Lower CI' expupper='Upper CI';
-  set cr_ppdest1-cr_ppdest14;
+  set cr_ppdest1-cr_ppdest15;
 run;
 
 /** Moved to s_niceprt2.sas
@@ -697,20 +972,24 @@ run;
 %tmp(sfinkt, 8);
 %tmp(forltyp, 9);
 %tmp(prodeliv, 10);
-%tmp(hyp, 11);
-%tmp(bp, 12);
-%tmp(wperc, 13);
-%tmp(diab, 14);
+*%tmp(hyp, 11);
+%tmp(bp, 11);
+%tmp(wperc, 12);
+%tmp(diab, 13);
+%tmp(plen_cat, 14);
 
 
 *--- Combine all RR;
 data xtmp1;
+  length variable $40;
   set v0(in=v0) v1-v14;
-  if v0 then do; category='All women'; end;
+  if v0 then do; category='All women'; variable='<None>'; end;
 run;
 
 
-*-- Repeat for women with a history of depression;
+*--------------------------------------------------;
+* Repeat for women with a history of depression    ;
+*--------------------------------------------------;
 proc datasets lib=work mt=data nolist;
   delete _v_ v0 v1-v14;
 run;quit;
@@ -739,27 +1018,31 @@ run;
 %tmp(sfinkt, 8 ,data=xtmp2);
 %tmp(forltyp, 9 ,data=xtmp2);
 %tmp(prodeliv, 10 ,data=xtmp2);
-%tmp(hyp, 11 ,data=xtmp2);
-%tmp(bp, 12 ,data=xtmp2);
-%tmp(wperc, 13 ,data=xtmp2);
-%tmp(diab, 14 ,data=xtmp2);
+*%tmp(hyp, 11 ,data=xtmp2);
+%tmp(bp, 11 ,data=xtmp2);
+%tmp(wperc, 12 ,data=xtmp2);
+%tmp(diab, 13 ,data=xtmp2);
+%tmp(plen_cat, 14 ,data=xtmp2);
 
 
 *--- Combine all RR;
 data xtmp3;
+  length variable $40;
   set v0(in=v0) v1-v14;
-  if v0 then do; category='All women'; end;
+  if v0 then do; category='All women'; variable='<None>'; end;
 run;
 
 
-*-- Repeat for women WITHOUT a history of depression;
+*--------------------------------------------------;
+* Repeat for women WITHOUT a history of depression ;
+*--------------------------------------------------;
 proc datasets lib=work mt=data nolist;
   delete _v_ v0 v1-v14;
 run;quit;
 
 
 data xtmp4;
-  set s1(where=(dephist=1));
+  set s1(where=(dephist=0));
 run;
 
 proc summary data=xtmp4 nway;
@@ -770,27 +1053,29 @@ run;
 
 
 
-%tmp(dephist, 1, data=xtmp2);
-%tmp(cbyear_cat, 2, data=xtmp2);
-%tmp(mage_catb, 3, data=xtmp2);
-%tmp(withfather, 4, data=xtmp2);
-%tmp(cs, 5, data=xtmp2);
-%tmp(deform, 6, data=xtmp2);
-%tmp(psycho, 7, data=xtmp2);
+%tmp(dephist, 1, data=xtmp4);
+%tmp(cbyear_cat, 2, data=xtmp4);
+%tmp(mage_catb, 3, data=xtmp4);
+%tmp(withfather, 4, data=xtmp4);
+%tmp(cs, 5, data=xtmp4);
+%tmp(deform, 6, data=xtmp4);
+%tmp(psycho, 7, data=xtmp4);
 
-%tmp(sfinkt, 8, data=xtmp2);
-%tmp(forltyp, 9, data=xtmp2);
-%tmp(prodeliv, 10, data=xtmp2);
-%tmp(hyp, 11, data=xtmp2);
-%tmp(bp, 12, data=xtmp2);
-%tmp(wperc, 13, data=xtmp2);
-%tmp(diab, 14, data=xtmp2);
+%tmp(sfinkt, 8, data=xtmp4);
+%tmp(forltyp, 9, data=xtmp4);
+%tmp(prodeliv, 10, data=xtmp4);
+*%tmp(hyp, 11, data=xtmp2);
+%tmp(bp, 11, data=xtmp4);
+%tmp(wperc, 12, data=xtmp4);
+%tmp(diab, 13, data=xtmp4);
+%tmp(plen_cat, 14, data=xtmp4);
 
 
 *--- Combine all RR;
 data xtmp5;
+  length variable $40;
   set v0(in=v0) v1-v14;
-  if v0 then do; category='All women'; end;
+  if v0 then do; category='All women'; variable='<None>';end;
 run;
 
 
@@ -814,7 +1099,7 @@ run;
 
 /* 140629 moved to niceprt1.sas
 title1 'Cases, Women, Person Years and Rate PPD overall';
-%tit(s_poana_ppd4);
+%tit(s_poana_ppd7);
 proc print data=basic noobs label;
   var lbl category events subjects pyear rate pct;
   by sub notsorted;id sub;
@@ -824,3 +1109,11 @@ run;
 %scarep(data=basic,id=sub lbl, var=category events subjects pyear rate pct);
 
 */
+
+*-- Cleanup ------------------------------------------------------------------;
+title1;footnote;
+proc datasets lib=work mt=data nolist;
+  delete s1-s7 v1-v14 xtmp1-xtmp5 cr_ppdest1-cr_ppdest14 ppdest1-ppdest6;
+quit;
+
+*-- End of File --------------------------------------------------------------;

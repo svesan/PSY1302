@@ -491,3 +491,32 @@ proc datasets lib=work mt=data nolist;
 quit;
 
 *-- End of File --------------------------------------------------------------;
+
+
+proc sort data=scdiag1;by mother_id child_bdat;run;
+data a;
+
+  merge br1(in=br1)
+        scdiag1(in=scdiag1);
+  by mother_id child_bdat;
+/*
+set scdiag1;
+hyperton='0';
+*/
+  if br1 and scdiag1 then do;
+    sfinkt=0; prediab=0; gravdiag=0; prodeliv=0; hyp=0; preeclam=0; bp=0; diab=0;
+
+  if substr(trim(mdiag),1,3) in ('O63') then prodeliv=1;
+  else if substr(trim(mdiag),1,3) in ('O11','O12') or hyperton='1' then hyp=1;
+  else if substr(trim(mdiag),1,3) in ('O14','O15') then preeclam=1;
+
+  if hyp then bp=2;
+  else if preeclam then bp=1;
+  else bp=0;
+end;
+else delete;
+run;
+
+proc freq data=a;
+  table hyp preeclam prodeliv bp hyperton /  nocol norow;
+run;

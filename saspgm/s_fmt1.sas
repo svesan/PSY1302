@@ -18,14 +18,15 @@
 
 *-- SAS formats --------------------------------------------------------------;
 proc format;
-  value yesno  1='Yes'  0='No';
-  value mage   1='15-19' 2='20-24' 3='25-29' 4='30-34' 5='35-39' 6='40-44' 7='45-49';
-  value mageb  1='15-19' 2='20-24' 3='25-29' 4='30-34' 5='35-39' 6='>=40';
-  value cyr    1='1997-2002' 2='2003-2008';
-  value mbcfmt 1960='1960-69' 1970='1970-79' 1980='1980-89';
-  value forlt  1='Elective CS' 2='Acute CS' 3='Instrument' 4='Vaginal';
-  value bpfmt  1='Preeclampsia' 2='Hypertonia' 0='Normal';
-  value diab   1='During Pregnancy' 2='Pre-Pregnancy' 0='Non-Diabetes';
+  value yesno   1='Yes'  0='No';
+  value mage    1='15-19' 2='20-24' 3='25-29' 4='30-34' 5='35-39' 6='40-44' 7='45-49';
+  value mageb   1='15-19' 2='20-24' 3='25-29' 4='30-34' 5='35-39' 6='>=40';
+  value cyr     1='1997-2002' 2='2003-2008';
+  value mbcfmt  1960='1960-69' 1970='1970-79' 1980='1980-89';
+  value forlt   1='Elective CS' 2='Acute CS' 3='Instrument' 4='Vaginal';
+  value bpfmt   1='Preeclampsia' 2='Hypertonia' 0='Normal';
+  value diab    1='During Pregnancy' 2='Pre-Pregnancy' 0='Non-Diabetes';
+  value plencat 1='<32 wks' 2='32-36 wks' 3='37-41 wks' 4='>=42 wks';
 run;
 
 *-- Main program -------------------------------------------------------------;
@@ -33,7 +34,7 @@ run;
 *-- Cleanup ------------------------------------------------------------------;
 title1;footnote;
 proc datasets lib=work mt=data nolist;
-delete _null_;
+  delete _null_;
 quit;
 
 *-- End of File --------------------------------------------------------------;

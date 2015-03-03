@@ -1,10 +1,16 @@
 *-----------------------------------------------------------------------------;
 * Study.......: PSY1302                                                       ;
-* Name........: s_runall_3.sas                                                ;
-* Date........: 2014-06-25                                                    ;
+* Name........: s_runall_6.sas                                                ;
+* Date........: 2014-15-05                                                    ;
 * Author......: svesan                                                        ;
 * Purpose.....: Run all SAS programs for the analysis of the PSY1001 study    ;
-* Note........: Updated s_dm4, s_poana_ppd4                                   ;
+* Note........: Updated s_dm6, s_poana_ppd7 (1) Preeclampsia was not correct  ;
+* ............: earlier, (2) Added the RR for Depr history in the nice-       ;
+* ............: printouts appendix for both -12 month analysis and PPD.       ;
+* ............: (3) Added models in _ppd7.sas program for BMI                 ;
+* ............:                                                               ;
+* ............:                                                               ;
+* ............:                                                               ;
 *-----------------------------------------------------------------------------;
 * Data used...:                                                               ;
 * Data created:                                                               ;
@@ -21,6 +27,8 @@
 %inc saspgm(tit)     /nosource;
 %inc saspgm(reset)   /nosource;
 %inc saspgm(scapno)  /nosource;
+%inc saspgm(scarep)  /nosource;
+%inc saspgm(sca2util)  /nosource;
 */
 
 *-- SAS macros ---------------------------------------------------------------;
@@ -43,26 +51,26 @@ options source source2;
 *===================================================================;
 * Data management                                                   ;
 *===================================================================;
-%printto(s_dm_ver3);
+%printto(s_dm_ver6);
   options ls=135 ps=43 source source2;
 
   %inc saspgm(s_fmt1);   *-- Define SAS formats to be used ;
-  %inc saspgm(s_dm6);    *-- Data management;
+  %inc saspgm(s_dm8);    *-- Data management;
 
 
 %cleanup;
 
-
+/***
 endrsubmit;
 proc options option=workperms; run;
 proc copy in=sasperm out=work;run;
-
+***/
 
 *----------------------------;
 * Summary statistics         ;
 *----------------------------;
 %reset(mode=3, reset=content pageno table prefix, gpageno=N);
-%printto(s_appendix_1_ver4);
+%printto(s_appendix_1_ver6);
   options notes source source2;
 
   %inc saspgm(s_missing1) /source;     *-- Print missing value patterns;
@@ -73,12 +81,12 @@ proc copy in=sasperm out=work;run;
 *----------------------------------------------;
 * Statistical analysis: SAS output and figures ;
 *----------------------------------------------;
-%printto(s_appendix_2_ver4);
+%printto(s_appendix_2_ver6);
   options ls=160 ps=43 notes source source2;
 
   %inc saspgm(s_poana_long2) /source;  *-- Poisson regression -12 to +12 month;
 
-  %inc saspgm(s_poana_ppd6) /source;   *-- Poisson regression PPD starting follow-up from birth;
+  %inc saspgm(s_poana_ppd7) /source;   *-- Poisson regression PPD starting follow-up from birth;
 
   %inc saspgm(s_survplot1) /source;    *-- Poisson regression PPD starting follow-up from birth (only figs);
 
@@ -89,12 +97,36 @@ proc copy in=sasperm out=work;run;
 *--------------------------------------;
 * Statistical analysis: Nice printouts ;
 *--------------------------------------;
-%printto(s_appendix_3_ver4);
+%printto(s_appendix_3_ver6);
   options ls=135 ps=43 notes source source2;
 
   %inc saspgm(s_niceprt2) /source;    *-- Print rates by ART and by IVFCODE ;
 
 %cleanup(content=Y);
+
+
+*--------------------------------------;
+* Sensitivity analysis                 ;
+*--------------------------------------;
+*%reset(mode=3, appno=3, reset=content pageno table prefix, gpageno=N);
+%printto(s_appendix_4_ver6);
+  options ls=160 ps=43 notes source source2;
+
+  %inc saspgm(s_poanasens_ppd1) /source;   *-- Poisson regression PPD starting follow-up from birth;
+
+%cleanup(content=Y);
+
+
+*--------------------------------------;
+* Sensitivity analysis: Nice printouts ;
+*--------------------------------------;
+%printto(s_appendix_5_ver6);
+  options ls=160 ps=43 notes source source2;
+
+  %inc saspgm(s_s1_niceprt3) /source;    *-- Print rates by ART and by IVFCODE ;
+
+%cleanup(content=Y);
+
 
 
 
